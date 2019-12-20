@@ -130,6 +130,62 @@ class Test_SelfLoops(unittest.TestCase):
 		CLL.run()
 		self.assertEqual(len(CL.ranking()), len(centrality.relativeRankErrors(CL.ranking(),CLL.ranking())))
 
+	def test_centrality_groupcloseness_localswaps(self):
+		g = readGraph('input/MIT8.edgelist', Format.EdgeList, separator='\t', firstNode=0,
+				continuous=False, directed=False)
+		g = components.ConnectedComponents(g).extractLargestConnectedComponent(g, True)
+		k, maxSwaps = 5, 150
+
+		for seed in range(4):
+			group = set()
+			setSeed(seed, False)
+			while len(group) < k:
+				group.add(graphtools.randomNode(g))
+			gc = centrality.GroupClosenessLocalSwaps(g, list(group))
+			gc.randomSeed = seed
+			gc.maxSwaps = maxSwaps
+			gc.run()
+
+			groupMaxCC = gc.groupMaxCloseness()
+			self.assertEqual(len(set(groupMaxCC)), k)
+			self.assertEqual(gc.randomSeed, seed)
+			self.assertEqual(gc.maxSwaps, maxSwaps)
+			self.assertGreaterEqual(gc.numberOfSwaps(), 0)
+
+			for u in groupMaxCC:
+				self.assertTrue(g.hasNode(u))
+
+	def test_centrality_groupcloseness_growshrink(self):
+		g = readGraph('input/MIT8.edgelist', Format.EdgeList, separator='\t', firstNode=0,
+				continuous=False, directed=False)
+		g = components.ConnectedComponents(g).extractLargestConnectedComponent(g, True)
+		k, maxIters = 5, 50
+
+		for seed in range(4):
+			for weighted in [False, True]:
+				group = set()
+				setSeed(seed, False)
+				while len(group) < k:
+					group.add(graphtools.randomNode(g))
+
+
+				if weighted:
+					gc = centrality.GroupClosenessGrowShrinkWeighted(g, group)
+				else:
+					gc = centrality.GroupClosenessGrowShrink(g, group)
+
+				gc.randomSeed = seed
+				gc.maxIterations = maxIters
+				gc.run()
+
+				groupMaxCC = gc.groupMaxCloseness()
+				self.assertEqual(len(set(groupMaxCC)), k)
+				self.assertEqual(gc.randomSeed, seed)
+				self.assertEqual(gc.maxIterations, maxIters)
+				self.assertGreaterEqual(gc.numberOfIterations(), 0)
+
+				for u in groupMaxCC:
+					self.assertTrue(g.hasNode(u))
 
 	def test_community_PLM(self):
 		PLML = community.PLM(self.L)

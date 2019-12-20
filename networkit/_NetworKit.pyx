@@ -8009,6 +8009,196 @@ cdef class GroupCloseness(Algorithm):
 		return (<_GroupCloseness*>(self._this)).scoreOfGroup(group)
 
 
+cdef extern from "<networkit/centrality/GroupClosenessLocalSwaps.hpp>":
+	cdef cppclass _GroupClosenessLocalSwaps "NetworKit::GroupClosenessLocalSwaps"(_Algorithm):
+		_GroupClosenessLocalSwaps(_Graph, const vector[node] &group) except +
+		vector[node] groupMaxCloseness() except +
+		count numberOfSwaps() except +
+		count maxSwaps
+		uint64_t randomSeed
+
+cdef class GroupClosenessLocalSwaps(Algorithm):
+	cdef Graph _G
+
+	def __cinit__(self, Graph G, group, maxSwaps = 100, randomSeed = 1):
+		"""
+		Finds a group of nodes with high group closeness centrality. This is the LS-restrict
+		algorithm presented in Angriman et al. "Local Search for Group Closeness Maximization on Big
+		Graphs" IEEE BigData 2019. The algorithm takes as input a (connected, unweighted,
+		undirected) graph and an arbitrary group of nodes, and improves the group closeness of the
+		given group by performing local swaps.
+
+		Parameters
+		----------
+		G : networkit.Graph
+			A connected, undirected, unweighted graph.
+		group : list
+			Initial group of nodes.
+		"""
+		self._G = G
+		self._this = new _GroupClosenessLocalSwaps(G._this, group)
+
+	# Attribute access
+	@property
+	def maxSwaps(self):
+		return (<_GroupClosenessLocalSwaps*>(self._this)).maxSwaps
+	@maxSwaps.setter
+	def maxSwaps(self, maxSwaps):
+		if maxSwaps <= 0:
+			raise Exception("Maximum swaps must be a positive integer.")
+		(<_GroupClosenessLocalSwaps*>(self._this)).maxSwaps = maxSwaps
+
+	@property
+	def randomSeed(self):
+		return (<_GroupClosenessLocalSwaps*>(self._this)).randomSeed
+	@randomSeed.setter
+	def randomSeed(self, randomSeed):
+		if randomSeed < 0:
+			raise Exception("Random seed must be a non negative integer.")
+		(<_GroupClosenessLocalSwaps*>(self._this)).randomSeed = randomSeed
+
+	def groupMaxCloseness(self):
+		"""
+		Returns the computed group.
+
+		Returns
+		-------
+		list
+			The computed group.
+		"""
+		return (<_GroupClosenessLocalSwaps*>(self._this)).groupMaxCloseness()
+
+	def numberOfSwaps(self):
+		"""
+		Returns the total number of swaps performed by the algorithm.
+
+		Returns
+		-------
+		int
+			The total number of swaps performed by the algorithm.
+		"""
+		return (<_GroupClosenessLocalSwaps*>(self._this)).numberOfSwaps()
+
+
+cdef extern from "<networkit/centrality/GroupClosenessGrowShrink.hpp>":
+	cdef cppclass _GroupClosenessGrowShrink "NetworKit::GroupClosenessGrowShrink"(_Algorithm):
+		_GroupClosenessGrowShrink(_Graph, const vector[node] &group, bool_t extended, count insertions) except +
+		vector[node] groupMaxCloseness() except +
+		count numberOfIterations() except +
+		count maxIterations
+		uint64_t randomSeed
+
+cdef class __GroupClosenessGrowShrink(Algorithm):
+	cdef Graph _G
+
+	def __init__(self, *args, **namedargs):
+		if type(self) == __GroupClosenessGrowShrink:
+			raise RuntimeError("Error, you may not use __GroupClosenessGrowShrink directly, use a sub-class instead")
+
+	@property
+	def maxIterations(self):
+		"""
+		Maximum number of iterations allowed.
+		"""
+		return (<_GroupClosenessLocalSwaps*>(self._this)).maxSwaps
+	@maxIterations.setter
+	def maxIterations(self, maxSwaps):
+		if maxSwaps <= 0:
+			raise Exception("Maximum swaps must be a positive integer.")
+		(<_GroupClosenessLocalSwaps*>(self._this)).maxSwaps = maxSwaps
+
+	@property
+	def randomSeed(self):
+		"""
+		Random seed used for the estimation of the transitive closure of the DAG.
+		"""
+		return (<_GroupClosenessLocalSwaps*>(self._this)).randomSeed
+	@randomSeed.setter
+	def randomSeed(self, randomSeed):
+		if randomSeed < 0:
+			raise Exception("Random seed must be a non negative integer.")
+		(<_GroupClosenessLocalSwaps*>(self._this)).randomSeed = randomSeed
+
+	def groupMaxCloseness(self):
+		"""
+		Returns the computed group.
+
+		Returns
+		-------
+		list
+			The computed group.
+		"""
+		return (<_GroupClosenessGrowShrink*>(self._this)).groupMaxCloseness()
+
+	def numberOfIterations(self):
+		"""
+		Return the total number of iterations performed by the algorithm.
+
+		Returns
+		-------
+		int
+			Total number of iterations performed by the algorithm.
+		"""
+		return (<_GroupClosenessGrowShrink*>(self._this)).numberOfIterations()
+
+cdef class GroupClosenessGrowShrink(__GroupClosenessGrowShrink):
+
+	def __cinit__(self, Graph G, group, extended = False, insertions = 0):
+		"""
+		Finds a group of nodes with high group closeness centrality. This is the Grow-Shrink
+		algorithm presented in Angriman et al. "Local Search for Group Closeness Maximization on Big
+		Graphs" IEEE BigData 2019. The algorithm takes as input a connected, unweighted, undirected
+		graph and an arbitrary group of nodes, and improves the group closeness of the given
+		group by performing vertex exchanges.
+
+		Parameters
+		----------
+		G : networkit.Graph
+			A connected, undirected, unweighted graph.
+		group : list
+			The initial group of nodes.
+		extended : bool
+			Set this parameter to true for the Extended Grow-Shrink algorithm (i.e.,
+			swaps are not restricted to only neighbors of the group).
+		insertions : int
+			Number of consecutive node insertions and removal per iteration. Let this
+			parameter to zero to use Diameter(G)/sqrt(k) nodes (where k is the size of the group).
+		"""
+		self._G = G
+		if G.isWeighted():
+			from warnings import warn
+			warn("Input graph is weighted, but this class ignores weights. Use GroupClosenessGrowShrinkWeighted instead.")
+		self._this = new _GroupClosenessGrowShrink(G._this, group, extended, insertions)
+
+cdef class GroupClosenessGrowShrinkWeighted(__GroupClosenessGrowShrink):
+
+	def __cinit__(self, Graph G, group, extended = False, insertions = 0):
+		"""
+		Finds a group of nodes with high group closeness centrality. This is the Grow-Shrink
+		algorithm presented in Angriman et al. "Local Search for Group Closeness Maximization on Big
+		Graphs" IEEE BigData 2019. The algorithm takes as input a connected, weighted, undirected
+		graph and an arbitrary group of nodes, and improves the group closeness of the given
+		group by performing vertex exchanges.
+
+		Parameters
+		----------
+		G : networkit.Graph
+			A connected, undirected, weighted graph.
+		group : list
+			The initial group of nodes.
+		extended : bool
+			Set this parameter to true for the Extended Grow-Shrink algorithm (i.e.,
+			swaps are not restricted to only neighbors of the group).
+		insertions : int
+			Number of consecutive node insertions and removal per iteration. Let this
+			parameter to zero to use Diameter(G)/sqrt(k) nodes (where k is the size of the group).
+		"""
+		self._G = G
+		if not G.isWeighted():
+			from warnings import warn
+			warn("Input graph is unweighted. Use GroupClosenessGrowShrink for better performance.")
+		self._this = new _GroupClosenessGrowShrink(G._this, group, extended, insertions)
+
 
 cdef extern from "<networkit/centrality/DegreeCentrality.hpp>":
 
