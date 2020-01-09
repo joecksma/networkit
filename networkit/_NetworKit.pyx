@@ -414,6 +414,21 @@ cdef cppclass NodeDistCallbackWrapper:
 		if (error):
 			throw_runtime_error(message)
 
+cdef cppclass NodeWeightDistCallbackWrapper:
+	void* callback
+	__init__(object callback):
+		this.callback = <void*>callback
+	void cython_call_operator(node u, edgeweight dist):
+		cdef bool_t error = False
+		cdef string message
+		try:
+			(<object>callback)(u, dist)
+		except Exception as e:
+			error = True
+			message = stdstring("An Exception occurred, aborting execution of iterator: {0}".format(e))
+		if (error):
+			throw_runtime_error(message)
+
 cdef cppclass NodePairCallbackWrapper:
 	void* callback
 	__init__(object callback):
@@ -5033,6 +5048,9 @@ cdef extern from "<networkit/graph/DFS.hpp>" namespace "NetworKit::Traversal":
 	void DFSfrom[Callback](_Graph G, node source, Callback c) nogil except +
 	void DFSEdgesFrom[Callback](_Graph G, node source, Callback c) nogil except +
 
+cdef extern from "<networkit/graph/Dijkstra.hpp>" namespace "NetworKit::Traversal":
+	void DijkstraFrom[InputIt, Callback](_Graph G, InputIt first, InputIt last, Callback c) nogil except +
+
 cdef class Traversal:
 
 	@staticmethod
@@ -5083,6 +5101,34 @@ cdef class Traversal:
 		try:
 			wrapper = new EdgeCallBackWrapper(callback)
 			BFSEdgesFrom[EdgeCallBackWrapper](graph._this, start, dereference(wrapper))
+		finally:
+			del wrapper
+
+	@staticmethod
+	def DijkstraFrom(Graph graph, start, object callback):
+		"""
+		Iterate over nodes with Dijkstra starting from the given node(s).
+
+		Parameters
+		----------
+		graph : networkit.Graph
+			The input graph.
+		start : node/list
+			Single node or list of nodes from where the Dijkstra exploration will start.
+		callback : Function
+			Takes either one (node) or two (node, distance) input parameters.
+		"""
+
+		cdef NodeWeightDistCallbackWrapper *wrapper
+		cdef vector[node] sources
+
+		try:
+			wrapper = new NodeWeightDistCallbackWrapper(callback)
+			try:
+				sources = <vector[node]?>start
+			except TypeError:
+				sources = [<node?>start]
+			DijkstraFrom[vector[node].iterator, NodeWeightDistCallbackWrapper](graph._this, sources.begin(), sources.end(), dereference(wrapper))
 		finally:
 			del wrapper
 
