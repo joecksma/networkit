@@ -96,6 +96,54 @@ else()
 	message(WARNING "Support only GCC, Clang, MSVC and AppleClang. Your compiler may or may not work.")
 endif()
 
+# Add flags for AVX instructions if available on the machine (and NETWORKIT_NATIVE is set to ON)
+if (NETWORKIT_NATIVE)
+
+	# Warning message to throw if AVX instructions are not available on host.
+	set(AVX_WARNING_MESSAGE "AVX instructions are not available on this machine")
+
+	# Check if avx512f is available on host. Store result in AVX_512f_TRUE.
+	function(check_avx512f CPUINFO)
+		STRING(REGEX REPLACE "^.*(avx512f).*$" "\\1" AVX_THERE ${CPUINFO})
+		STRING(COMPARE EQUAL "avx512f" "${AVX_THERE}" AVX_FOUND)
+		set(AVX_512f_TRUE ${AVX_FOUND} PARENT_SCOPE)
+	endfunction(check_avx512f)
+
+	# Check if avx512vl is available on host. Store result in AVX_512vl_TRUE.
+	function(check_avx512vl CPUINFO)
+		STRING(REGEX REPLACE "^.*(avx512vl).*$" "\\1" AVX_THERE ${CPUINFO})
+		STRING(COMPARE EQUAL "avx512vl" "${AVX_THERE}" AVX_FOUND)
+		set(AVX_512vl_TRUE ${AVX_FOUND} PARENT_SCOPE)
+	endfunction(check_avx512vl)
+
+	# Check if AVX instructions are supported on host. If yes, enable the required AVX flags.
+	function(set_avx_flags CPUINFO)
+		check_avx512f(${CPUINFO})
+		check_avx512vl(${CPUINFO})
+
+		if (AVX_512f_TRUE AND AVX_512vl_TRUE)
+			set(NETWORKIT_CXX_FLAGS "${NETWORKIT_CXX_FLAGS} -mavx -mavx512vl -mavx512f -DNETWORKIT_WITH_AVX")
+		else()
+			message(WARNING ${AVX_WARNING_MESSAGE})
+		endif()
+	endfunction(set_avx_flags)
+
+	if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+		# Get cpu info
+		EXEC_PROGRAM(cat ARGS "/proc/cpuinfo" OUTPUT_VARIABLE CPUINFO)
+		set_avx_flags(${CPUINFO})
+
+	elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		# Get cpu info
+		EXEC_PROGRAM("/usr/sbin/sysctl -n machdep.cpu.features" OUTPUT_VARIABLE CPUINFO)
+		set_avx_flags(${CPUINFO})
+	else()
+		# TODO check avx flags on Windows
+		message(WARNING "Compiling NetworKit with AVX instructions is not yet supported on this OS.")
+	endif()
+endif()
+
+
 # Checking sanitizer options; in both cases we include 'undefined'
 set(NETWORKIT_CXX_SANITIZERS "")
 if ("${NETWORKIT_WITH_SANITIZERS}" STREQUAL "address")

@@ -15,6 +15,7 @@ networkit_add_module(centrality
     EigenvectorCentrality.cpp
     EstimateBetweenness.cpp
     GroupCloseness.cpp
+    GroupClosenessLocalSwaps.cpp
     GroupDegree.cpp
     HarmonicCloseness.cpp
     KadabraBetweenness.cpp
